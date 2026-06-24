@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private var currentGps by mutableStateOf("")
     private var gpsAccuracy by mutableStateOf(0f)
     private var isGpsLoading by mutableStateOf(false)
+    private var isProcessingChat by mutableStateOf(false)
 
     private var importedFileName by mutableStateOf("")
     private var importedChatText by mutableStateOf("")
@@ -68,12 +69,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun isGpsEnabled(): Boolean {
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+        return locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Fetch location initially
-        refreshGpsLocation()
+        // Fetch location initially only if GPS is enabled and permission is granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && isGpsEnabled()) {
+            refreshGpsLocation()
+        } else {
+            currentGps = ""
+        }
 
         setContent {
             WhatsAppToExcelTheme {
@@ -82,6 +92,7 @@ class MainActivity : ComponentActivity() {
                     gpsAccuracy = gpsAccuracy,
                     isGpsLoading = isGpsLoading,
                     onRefreshGps = { refreshGpsLocation() },
+                    isProcessingChat = isProcessingChat,
                     importedFileName = importedFileName,
                     importedChatText = importedChatText,
                     onChatTextChanged = { importedChatText = it },
@@ -143,33 +154,50 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        if (!isGpsEnabled()) {
+            currentGps = ""
+            gpsAccuracy = 0f
+            Toast.makeText(this, "Kripya apna GPS/Location on karein", Toast.LENGTH_LONG).show()
+            return
+        }
+
         isGpsLoading = true
         currentGps = "Dhoond rahe hain..."
         fusedLocationClient.lastLocation.addOnCompleteListener { task ->
             isGpsLoading = false
             if (task.isSuccessful && task.result != null) {
                 val loc = task.result
-                currentGps = "${loc.latitude},${loc.longitude}"
+                currentGps = String.format(Locale.US, "%.4f,%.4f", loc.latitude, loc.longitude)
                 gpsAccuracy = loc.accuracy
             } else {
-                currentGps = "22.1589,71.6827" // Default Home fallback
+                currentGps = "" // No fallback when GPS fails or is off
                 gpsAccuracy = 0f
-                Toast.makeText(this, "Default coordinate par fallback kiya", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Location nahi mil payi. Kripya check karein ki GPS on hai.", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     private fun handleChatFilePicked(uri: Uri) {
-        try {
-            importedFileName = getFileName(uri) ?: "WhatsApp_Chat.txt"
-            val text = contentResolver.openInputStream(uri)?.use { stream ->
-                stream.bufferedReader().use { it.readText() }
-            } ?: ""
-            importedChatText = text
-            errorMsg = ""
-        } catch (e: Exception) {
-            errorMsg = "File read karne me dikkat aayi: ${e.localizedMessage}"
-        }
+        isProcessingChat = true
+        errorMsg = ""
+        Thread {
+            try {
+                val text = contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader().use { it.readText() }
+                } ?: ""
+                val fileName = getFileName(uri) ?: "WhatsApp_Chat.txt"
+                runOnUiThread {
+                    importedFileName = fileName
+                    importedChatText = text
+                    isProcessingChat = false
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    errorMsg = "File read karne me dikkat aayi: ${e.localizedMessage}"
+                    isProcessingChat = false
+                }
+            }
+        }.start()
     }
 
     private fun handleExcelFilePicked(uri: Uri) {
@@ -218,14 +246,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun processData(senderName: String, execName: String, chatText: String, fromDate: Date, toDate: Date) {
-        try {
-            val result = ChatParser.processChat(chatText, senderName, fromDate, toDate)
-            rowsState.clear()
-            rowsState.addAll(result.rows)
-            processStatsState = result.stats
-        } catch (e: Exception) {
-            errorMsg = "Data process karne me error: ${e.localizedMessage}"
-        }
+        isProcessingChat = true
+        errorMsg = ""
+        Thread {
+            try {
+                val result = ChatParser.processChat(chatText, senderName, fromDate, toDate)
+                runOnUiThread {
+                    rowsState.clear()
+                    rowsState.addAll(result.rows)
+                    processStatsState = result.stats
+                    isProcessingChat = false
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    errorMsg = "Data process karne me error: ${e.localizedMessage}"
+                    isProcessingChat = false
+                }
+            }
+        }.start()
     }
 
     private fun exportExcelSheet() {
@@ -317,9 +355,9 @@ class MainActivity : ComponentActivity() {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 refreshGpsLocation()
             } else {
-                currentGps = "22.1589,71.6827" // Default Home coordinate fallback
+                currentGps = "" // No fallback on permission denied
                 gpsAccuracy = 0f
-                Toast.makeText(this, "Location permission denied. Home coordinate use ho raha hai.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Location permission denied.", Toast.LENGTH_LONG).show()
             }
         }
     }
