@@ -271,7 +271,11 @@ object PdfConverter {
                         val text = getCellText(cellObj)
                         if (text.isNotEmpty()) {
                             val cellStyle = cellObj.cellStyle
-                            val font = cellStyle?.font ?: wb.createFont()
+                            val font = if (cellStyle != null) {
+                                wb.getFontAt(cellStyle.fontIndex.toInt())
+                            } else {
+                                wb.createFont()
+                            }
 
                             val fontName = font.fontName ?: "Calibri"
                             val fontSize = font.fontHeightInPoints.toFloat()
