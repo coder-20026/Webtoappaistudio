@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
 import com.whatsapptoexcel.app.parser.CaseRow
 import com.whatsapptoexcel.app.parser.ChatParser
 import com.whatsapptoexcel.app.parser.ProcessStats
@@ -287,7 +289,7 @@ fun GpsLiveBar(
                         if (gpsAccuracy > 0) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "(±${gpsAccuracy.toInt()}m)",
+                                text = "(Â±${gpsAccuracy.toInt()}m)",
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
@@ -748,7 +750,7 @@ fun ExcelToPdfCard(
             }
 
             Text(
-                text = "Excel upload karo — har sheet ek landscape page par (A1:I24), saare rows aur columns ek page me fit, aur page number top-right corner me. Single PDF download aur share hogi.",
+                text = "Excel upload karo â€” har sheet ek landscape page par (A1:I24), saare rows aur columns ek page me fit, aur page number top-right corner me. Single PDF download aur share hogi.",
                 fontSize = 12.sp,
                 color = TextMuted,
                 lineHeight = 18.sp
@@ -756,7 +758,7 @@ fun ExcelToPdfCard(
 
             Button(
                 onClick = onSelectExcel,
-                disabled = busy,
+                enabled = !busy,
                 colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = PrimaryBlue),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
@@ -855,7 +857,7 @@ fun EmptyResultsCard() {
                 color = TextDark
             )
             Text(
-                text = "Left side chat daalo, date range chuno aur \"Data process karo\" dabao — extract hua data yahan editable table me aayega.",
+                text = "Left side chat daalo, date range chuno aur \"Data process karo\" dabao â€” extract hua data yahan editable table me aayega.",
                 fontSize = 12.sp,
                 color = TextMuted,
                 textAlign = TextAlign.Center,
@@ -941,7 +943,7 @@ fun ResultsSection(
                     color = TextDark
                 )
                 Text(
-                    text = "${stats.totalMessages} messages padhe • ${stats.fromSender} tumhare • ${stats.inRange} date range me • ${stats.validCases} valid case",
+                    text = "${stats.totalMessages} messages padhe â€¢ ${stats.fromSender} tumhare â€¢ ${stats.inRange} date range me â€¢ ${stats.validCases} valid case",
                     fontSize = 12.sp,
                     color = TextMuted
                 )
