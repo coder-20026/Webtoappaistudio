@@ -43,6 +43,7 @@ fun MainScreen(
     gpsAccuracy: Float,
     isGpsLoading: Boolean,
     onRefreshGps: () -> Unit,
+    isProcessingChat: Boolean,
     onImportChatFile: () -> Unit,
     importedChatText: String,
     importedFileName: String,
@@ -174,6 +175,7 @@ fun MainScreen(
             // Process Button
             Button(
                 onClick = {
+                    if (isProcessingChat) return@Button
                     setErrorMsg("")
                     if (importedChatText.trim().isEmpty()) {
                         setErrorMsg("Pehle WhatsApp chat ki .txt file upload karo ya text paste karo.")
@@ -195,18 +197,36 @@ fun MainScreen(
                     }
                     onProcessData(senderName, execName, importedChatText, fDate, tDate)
                 },
+                enabled = !isProcessingChat,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
             ) {
-                Text(
-                    text = "Data process karo",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (isProcessingChat) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Processing ho raha hai...",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Data process karo",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             // 5. Excel to PDF Card
@@ -270,7 +290,7 @@ fun GpsLiveBar(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
-                        text = "LIVE LOCATION GPS (ALWAYS VISIBLE)",
+                        text = if (currentGps.isEmpty()) "LIVE LOCATION GPS (OFF HAI)" else "LIVE LOCATION GPS (ACTIVE)",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White.copy(alpha = 0.7f),
@@ -278,7 +298,7 @@ fun GpsLiveBar(
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (currentGps.isEmpty()) "Dhoond rahe hain..." else currentGps,
+                            text = if (currentGps.isEmpty()) "Location Off (GPS On karein)" else currentGps,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -286,7 +306,7 @@ fun GpsLiveBar(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (gpsAccuracy > 0) {
+                        if (gpsAccuracy > 0 && currentGps.isNotEmpty()) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "(Â±${gpsAccuracy.toInt()}m)",
@@ -299,17 +319,6 @@ fun GpsLiveBar(
             }
 
             Row {
-                IconButton(
-                    onClick = onCopyGps,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Copy GPS",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
                 IconButton(
                     onClick = onRefreshGps,
                     enabled = !isGpsLoading,
@@ -329,6 +338,17 @@ fun GpsLiveBar(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+                IconButton(
+                    onClick = onCopyGps,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Copy GPS",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -588,9 +608,19 @@ fun InputChatCard(
                     color = TextDark,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
+                val displayText = if (importedFileName.isNotEmpty() && chatText.length > 3000) {
+                    chatText.substring(0, 3000) + "\n\n... [Truncated for performance. Full chat will be processed!]"
+                } else {
+                    chatText
+                }
                 OutlinedTextField(
-                    value = chatText,
-                    onValueChange = onChatTextChanged,
+                    value = displayText,
+                    onValueChange = { 
+                        if (importedFileName.isEmpty()) {
+                            onChatTextChanged(it)
+                        }
+                    },
+                    readOnly = importedFileName.isNotEmpty(),
                     placeholder = {
                         Text(
                             "01/01/2024, 10:35 - Chauhan: B.V (Aadhar fin.)\n1)Applicat name :- Parasantbhai Haribhai savani\n...",
@@ -924,6 +954,8 @@ fun ResultsSection(
     onCopyTable: () -> Unit,
     tableCopied: Boolean
 ) {
+    var visibleRowsCount by remember { mutableStateOf(50) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1047,8 +1079,8 @@ fun ResultsSection(
 
                         Divider(color = BorderColor)
 
-                        // Table Body Rows
-                        rows.forEachIndexed { index, row ->
+                        // Table Body Rows (only take visibleRowsCount for UI rendering performance)
+                        rows.take(visibleRowsCount).forEachIndexed { index, row ->
                             Row(
                                 modifier = Modifier
                                     .background(if (index % 2 == 0) Color.White else BackgroundLight)
@@ -1089,6 +1121,25 @@ fun ResultsSection(
                             }
                             Divider(color = BorderColor.copy(alpha = 0.5f))
                         }
+                    }
+                }
+
+                if (rows.size > visibleRowsCount) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Dhyan dein: Performance achhi rakhne ke liye abhi pehle $visibleRowsCount cases dikhaye gaye hain. Excel export me saare ${rows.size} cases aayenge.",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = { visibleRowsCount += 100 },
+                        colors = ButtonDefaults.buttonColors(containerColor = BackgroundLight, contentColor = PrimaryBlue),
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "Aur 100 rows dekhein (${rows.size - visibleRowsCount} bache hain)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
