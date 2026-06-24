@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp to Excel",
+  "description": "WhatsApp chat se bank, applicant aur reason nikaal kar saaf-suthri Excel aur PDF banao.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
